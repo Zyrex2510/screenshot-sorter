@@ -21,7 +21,12 @@ import com.zyrex.screenshotsorter.core.AutostartScreens
 object SetupState {
     fun hasStorage(context: Context): Boolean =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Environment.isExternalStorageManager()
+            try {
+                Environment.isExternalStorageManager()
+            } catch (e: RuntimeException) {
+                // Android could not find the storage volume (it can fail right after a reboot). That is not a yes.
+                false
+            }
         } else {
             ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
                 PackageManager.PERMISSION_GRANTED
