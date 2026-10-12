@@ -12,12 +12,17 @@ interface FileMover {
 }
 
 /**
- * Moves by renaming inside the same storage, which is instant and never copies or overwrites.
+ * Moves by renaming inside the same storage, which is instant and never copies.
+ *
+ * The free name is checked first and the rename runs second, and on Android a rename replaces an
+ * existing file. So moves run one at a time, and nothing is overwritten as long as this app is the
+ * only thing adding files to the target folder, which is true for the per-app folders it creates.
  * [onMoved] tells the gallery index; a problem there does not undo the move.
  */
 class DirectFileMover(
     private val onMoved: (from: File, to: File) -> Unit = { _, _ -> },
 ) : FileMover {
+    @Synchronized
     override fun move(source: File, targetDir: File): MoveResult {
         if (!source.isFile) return MoveResult.Failed("The screenshot is no longer there")
         if (targetDir.exists() && !targetDir.isDirectory) {
