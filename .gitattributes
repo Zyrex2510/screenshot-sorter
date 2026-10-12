@@ -1,0 +1,3 @@
+# The Gradle wrapper script must keep LF line endings or it fails under sh on a fresh checkout.
+gradlew text eol=lf
+*.bat text eol=crlf
