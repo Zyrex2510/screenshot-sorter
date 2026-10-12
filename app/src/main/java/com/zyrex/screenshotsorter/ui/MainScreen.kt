@@ -8,12 +8,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -33,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -57,12 +61,17 @@ class MainActions(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(ui: MainUi, actions: MainActions) {
-    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) }) { insets ->
+        val direction = LocalLayoutDirection.current
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 24.dp),
+            modifier = Modifier.fillMaxSize(),
+            // The insets go into the padding, not around the list, so the list scrolls under the system bars.
+            contentPadding = PaddingValues(
+                start = insets.calculateStartPadding(direction) + 16.dp,
+                top = insets.calculateTopPadding() + 8.dp,
+                end = insets.calculateEndPadding(direction) + 16.dp,
+                bottom = insets.calculateBottomPadding() + 24.dp,
+            ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item { SwitchCard(ui, actions.onToggle) }
@@ -71,22 +80,17 @@ fun MainScreen(ui: MainUi, actions: MainActions) {
             item { SectionTitle(R.string.old_title) }
             item { OldCard(ui.oldSort, canSort = ui.setup.storage, onSortOld = actions.onSortOld) }
             item { SectionTitle(R.string.recent_title) }
-            if (ui.recent.isEmpty()) {
-                item {
-                    Text(
-                        stringResource(R.string.recent_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                    )
-                }
-            } else {
-                items(ui.recent) { RecentRow(it) }
-            }
+            item { RecentCard(ui.recent) }
         }
     }
     OldSortDialog(ui.oldSort, actions)
 }
+
+// The leading icons, and the dividers that start under the text beside them, share one column.
+private val IconSize = 24.dp
+private val IconGap = 14.dp
+private val RowInset = 16.dp
+private val TextStart = RowInset + IconSize + IconGap
 
 @Composable
 private fun SectionTitle(@StringRes text: Int) {
@@ -94,8 +98,23 @@ private fun SectionTitle(@StringRes text: Int) {
         stringResource(text),
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 4.dp, top = 12.dp),
+        modifier = Modifier.padding(start = RowInset, top = 12.dp),
     )
+}
+
+@Composable
+private fun InsetDivider() {
+    HorizontalDivider(modifier = Modifier.padding(start = TextStart), color = MaterialTheme.colorScheme.outlineVariant)
+}
+
+@Composable
+private fun SectionCard(content: @Composable () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    ) {
+        content()
+    }
 }
 
 @Composable
@@ -146,7 +165,7 @@ private enum class StepState {
 
 @Composable
 private fun SetupCard(setup: SetupUi, actions: MainActions) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+    SectionCard {
         SetupRow(
             R.string.setup_files,
             stringResource(R.string.setup_files_detail),
@@ -154,7 +173,7 @@ private fun SetupCard(setup: SetupUi, actions: MainActions) {
             R.string.action_allow,
             actions.onGrantStorage,
         )
-        HorizontalDivider()
+        InsetDivider()
         if (setup.usageNeeded) {
             // Android 15 hides this switch for apps installed from an APK until the user unlocks it.
             val restricted = !setup.usage && Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM
@@ -170,7 +189,7 @@ private fun SetupCard(setup: SetupUi, actions: MainActions) {
                 actions.onGrantUsage,
             )
         }
-        HorizontalDivider()
+        InsetDivider()
         SetupRow(
             R.string.setup_battery,
             stringResource(R.string.setup_battery_detail),
@@ -179,11 +198,11 @@ private fun SetupCard(setup: SetupUi, actions: MainActions) {
             actions.onAllowBackground,
         )
         if (setup.brandHint != null) {
-            HorizontalDivider()
+            InsetDivider()
             SetupRow(R.string.setup_autostart, setup.brandHint, StepState.Manual, R.string.action_open, actions.onOpenAutostart)
         }
         if (setup.asksNotifications) {
-            HorizontalDivider()
+            InsetDivider()
             SetupRow(
                 R.string.setup_notifications,
                 stringResource(R.string.setup_notifications_detail),
@@ -201,19 +220,22 @@ private fun SetupRow(@StringRes title: Int, detail: String, state: StepState, @S
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = RowInset, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Level with the title, so the icons line up in one column however long the text beside them is.
         Icon(
             painter = painterResource(if (ticked) R.drawable.ic_check_circle else R.drawable.ic_circle),
             contentDescription = null,
             tint = if (state == StepState.Done) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier
+                .align(Alignment.Top)
+                .size(IconSize),
         )
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = 14.dp),
+                .padding(horizontal = IconGap),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
@@ -228,11 +250,11 @@ private fun SetupRow(@StringRes title: Int, detail: String, state: StepState, @S
 @Composable
 private fun OldCard(state: OldSort, canSort: Boolean, onSortOld: () -> Unit) {
     val busy = state is OldSort.Counting || state is OldSort.Working
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+    SectionCard {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(RowInset),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(stringResource(R.string.old_detail), style = MaterialTheme.typography.bodyMedium)
@@ -289,6 +311,26 @@ private fun NoticeDialog(title: String, text: String?, onDismiss: () -> Unit) {
 }
 
 @Composable
+private fun RecentCard(recent: List<LogEntry>) {
+    SectionCard {
+        if (recent.isEmpty()) {
+            Text(
+                stringResource(R.string.recent_empty),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(RowInset),
+            )
+        } else {
+            // The log keeps at most 20 entries, so one card with all the rows is cheaper than a list item per row.
+            recent.forEachIndexed { index, entry ->
+                if (index > 0) InsetDivider()
+                RecentRow(entry)
+            }
+        }
+    }
+}
+
+@Composable
 private fun RecentRow(entry: LogEntry) {
     @DrawableRes val icon: Int
     val tint: Color
@@ -313,28 +355,33 @@ private fun RecentRow(entry: LogEntry) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = RowInset, vertical = 12.dp),
     ) {
-        Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+        Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(IconSize))
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = 14.dp),
+                .padding(start = IconGap),
         ) {
-            Text(text, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                entry.fileName,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            // A failure reason may need a second line; it is the part worth reading.
+            Text(text, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            // The time shares the filename's line, so the title above keeps the whole width.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    entry.fileName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    DateUtils.getRelativeTimeSpanString(entry.timeMillis, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
-        Text(
-            DateUtils.getRelativeTimeSpanString(entry.timeMillis, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString(),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
