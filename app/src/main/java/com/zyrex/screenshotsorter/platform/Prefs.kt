@@ -11,6 +11,14 @@ class Prefs(context: Context) {
         get() = prefs.getBoolean("enabled", false)
         set(value) = prefs.edit().putBoolean("enabled", value).apply()
 
+    /**
+     * When sorting was last switched on, in milliseconds since 1970. Automatic sorting leaves screenshots that
+     * last changed before this alone; they wait for "Sort old screenshots". 0 means no limit.
+     */
+    var sortingSince: Long
+        get() = prefs.getLong("sortingSince", 0)
+        set(value) = prefs.edit().putLong("sortingSince", value).apply()
+
     /** Whether usage access was already granted the last time the screen looked. */
     var usageAccessSeen: Boolean
         get() = prefs.getBoolean("usageAccessSeen", false)

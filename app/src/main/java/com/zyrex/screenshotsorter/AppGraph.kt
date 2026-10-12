@@ -8,6 +8,7 @@ import com.zyrex.screenshotsorter.core.DirectFileMover
 import com.zyrex.screenshotsorter.core.HandledKeys
 import com.zyrex.screenshotsorter.core.ScreenshotFinder
 import com.zyrex.screenshotsorter.core.Sorter
+import com.zyrex.screenshotsorter.core.SweepResult
 import com.zyrex.screenshotsorter.platform.AndroidInstalledApps
 import com.zyrex.screenshotsorter.platform.MediaIndex
 import com.zyrex.screenshotsorter.platform.Prefs
@@ -28,4 +29,8 @@ class AppGraph(context: Context) {
         HandledKeys(prefs.textStore("handled")),
         log,
     )
+
+    /** The pass every automatic caller must use: it leaves screenshots from before sorting was switched on alone. */
+    fun sortNewScreenshots(recheckAll: Boolean = false): SweepResult =
+        sorter.sortPending(recheckAll = recheckAll, notBeforeMillis = prefs.sortingSince)
 }

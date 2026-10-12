@@ -127,6 +127,48 @@ class SorterTest {
     }
 
     @Test
+    fun aScreenshotFromBeforeTheLimitIsLeftWhereItIsAndNotRememberedAsLookedAt() {
+        val old = shot(telegramShot, ageMillis = 60_000)
+        val unknown = shot(plainShot, ageMillis = 50_000)
+        val limit = clock - 30_000
+
+        assertEquals(SweepResult(moved = 0, tooNew = 0), sorter.sortPending(notBeforeMillis = limit))
+
+        assertTrue(old.exists())
+        assertTrue(unknown.exists())
+        assertTrue("a skipped screenshot is not logged", log.entries.value.isEmpty())
+        assertEquals("a skipped screenshot is not looked at", 0, history.calls)
+        // Without the limit the same screenshots are still waiting: nothing was given up on.
+        history.packageName = "org.telegram.messenger"
+        assertEquals(SweepResult(moved = 2, tooNew = 0), sorter.sortPending())
+        assertTrue(File(shots, "Telegram/$telegramShot").isFile)
+        assertTrue(File(shots, "Telegram/$plainShot").isFile)
+    }
+
+    @Test
+    fun aScreenshotFromBeforeTheLimitIsNotCountedAsTooNewEither() {
+        val fresh = shot(telegramShot, ageMillis = 3_000)
+
+        assertEquals(SweepResult(moved = 0, tooNew = 0), sorter.sortPending(notBeforeMillis = clock))
+
+        assertTrue(fresh.exists())
+    }
+
+    @Test
+    fun aScreenshotFromTheLimitOnwardsIsMovedAsBefore() {
+        val atTheLimit = shot(telegramShot, ageMillis = 60_000)
+        val afterTheLimit = shot("Screenshot_2026-10-09-14-23-00-000_org.telegram.messenger.jpg", ageMillis = 20_000)
+        val tooNew = shot("Screenshot_2026-10-09-14-24-00-000_org.telegram.messenger.jpg", ageMillis = 3_000)
+
+        val result = sorter.sortPending(notBeforeMillis = clock - 60_000)
+
+        assertEquals(SweepResult(moved = 2, tooNew = 1), result)
+        assertFalse(atTheLimit.exists())
+        assertFalse(afterTheLimit.exists())
+        assertTrue("the ten second rule still applies", tooNew.exists())
+    }
+
+    @Test
     fun countsOnlyWhatItCanIdentify() {
         shot(telegramShot)
         shot(plainShot)

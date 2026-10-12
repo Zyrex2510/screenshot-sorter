@@ -89,6 +89,21 @@ class MainViewModelSorterFailureTest {
         assertTrue("the setup list should still have been shown", viewModel.ui.value.setup.storage)
     }
 
+    @Test
+    fun theRecheckAfterGrantingUsageAccessLeavesScreenshotsFromBeforeSortingWasSwitchedOnAlone() {
+        val prefs = (app as SorterApp).graph.prefs
+        // The screenshot from the set-up is a minute old and needs the usage service; sorting was switched on 30 seconds ago.
+        prefs.sortingSince = System.currentTimeMillis() - 30_000
+        val viewModel = MainViewModel(app)
+
+        viewModel.refresh()
+        viewModel.awaitUntil("usage access to show as granted") { it.setup.usage }
+        awaitOnMainThread("the recheck to finish") { prefs.usageAccessSeen }
+
+        assertEquals("the screenshot should not even have been looked at", 0, UsageQueries.count.get())
+        assertEquals(emptyList<Throwable>(), uncaught)
+    }
+
     // The recheck runs on a background thread after the setup is published. It is over once the screen has either
     // written down that it coped (a log line) or let the error loose.
     private fun awaitTheRecheck() {

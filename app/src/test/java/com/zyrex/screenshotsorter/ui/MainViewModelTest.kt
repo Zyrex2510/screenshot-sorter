@@ -6,6 +6,8 @@ import android.os.Looper
 import com.zyrex.screenshotsorter.SorterApp
 import com.zyrex.screenshotsorter.grantStorage
 import com.zyrex.screenshotsorter.startAsAFreshInstall
+import com.zyrex.screenshotsorter.watch.WatchService
+import com.zyrex.screenshotsorter.watch.waitUntilTheWatcherHasDoneItsFirstSweep
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -15,6 +17,7 @@ import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
@@ -65,7 +68,54 @@ class MainViewModelTest {
 
         assertFalse(viewModel.ui.value.enabled)
         assertFalse(prefs.enabled)
+        assertEquals("a switch that did not turn on starts no clock", 0L, prefs.sortingSince)
         assertNull("nothing should have been started", shadowOf(app).nextStartedService)
+    }
+
+    @Test
+    fun switchingOnRecordsWhenSortingStartedAndSwitchingOffLeavesItAlone() {
+        grantStorage(app)
+        val viewModel = MainViewModel(app)
+        viewModel.refresh()
+        viewModel.awaitUntil("files access to show as granted") { it.setup.storage }
+        assertEquals(0L, prefs.sortingSince)
+
+        val before = System.currentTimeMillis()
+        viewModel.setEnabled(true)
+        val first = prefs.sortingSince
+        assertTrue("switching on should record the time", first >= before)
+
+        viewModel.setEnabled(false)
+        assertEquals("switching off must not change it", first, prefs.sortingSince)
+
+        // Pretend a long time went by: the next switch-on starts a new period, so what was taken meanwhile waits for the button.
+        prefs.sortingSince = 1L
+        viewModel.setEnabled(true)
+        assertTrue("switching on again should record the new time", prefs.sortingSince >= before)
+    }
+
+    @Test
+    fun screenshotsFromBeforeTheSwitchWaitForTheButtonWhichStillSortsThem() {
+        grantStorage(app)
+        val old = screenshotAged("Screenshot_20260101-100000_com.example.chat.jpg", 60_000)
+        val viewModel = MainViewModel(app)
+        viewModel.refresh()
+        viewModel.awaitUntil("files access to show as granted") { it.setup.storage }
+
+        viewModel.setEnabled(true)
+        val service = Robolectric.buildService(WatchService::class.java).create()
+        try {
+            waitUntilTheWatcherHasDoneItsFirstSweep(service.get())
+        } finally {
+            service.destroy()
+        }
+        assertTrue("the watcher only files screenshots taken after sorting was switched on", old.exists())
+
+        viewModel.countOld()
+        assertEquals(OldSort.Confirm(1), viewModel.awaitUntil("the count") { it.oldSort is OldSort.Confirm }.oldSort)
+        viewModel.confirmOld()
+        assertEquals(OldSort.Done(1), viewModel.awaitUntil("the sort") { it.oldSort is OldSort.Done }.oldSort)
+        assertFalse("the button should have filed the old screenshot", old.exists())
     }
 
     @Test

@@ -16,12 +16,16 @@ class Sorter(
     /**
      * Files changed less than [minAgeMillis] ago are left for the next pass, so the system's edit/share
      * popup keeps working. [recheckAll] also retries the ones that could not be matched earlier.
+     *
+     * Files last changed before [notBeforeMillis] are skipped as if they were not there: not moved, not counted
+     * as too new, not remembered as looked at and not logged, so a later pass without the limit still finds them.
      */
     @Synchronized
-    fun sortPending(recheckAll: Boolean = false, minAgeMillis: Long = MIN_AGE_MILLIS): SweepResult {
+    fun sortPending(recheckAll: Boolean = false, minAgeMillis: Long = MIN_AGE_MILLIS, notBeforeMillis: Long = 0): SweepResult {
         var moved = 0
         var tooNew = 0
         for (file in finder.unsorted()) {
+            if (file.lastModified() < notBeforeMillis) continue
             val age = now() - file.lastModified()
             if (age < minAgeMillis) {
                 tooNew++

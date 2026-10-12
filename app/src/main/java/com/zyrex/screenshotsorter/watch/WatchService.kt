@@ -82,7 +82,7 @@ class WatchService : Service() {
         sweepQueued.set(false)
         try {
             if (!SetupState.hasStorage(this)) return
-            val result = (application as SorterApp).graph.sorter.sortPending()
+            val result = (application as SorterApp).graph.sortNewScreenshots()
             if (result.tooNew > 0) queueSweep(Sorter.MIN_AGE_MILLIS)
         } catch (e: Exception) {
             // The pass has no catch of its own, and an exception here would end the watcher's thread and crash the app

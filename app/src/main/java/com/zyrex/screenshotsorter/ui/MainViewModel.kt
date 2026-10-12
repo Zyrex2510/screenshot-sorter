@@ -75,7 +75,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             if (state.usage && !graph.prefs.usageAccessSeen) {
                 // Usage access was just granted: screenshots given up on earlier can now be matched.
                 // If the recheck fails, leave the flag alone so it is tried again the next time the screen opens.
-                askSorter<SweepResult?>(null) { sortPending(recheckAll = true) } ?: return@launch
+                // It is an automatic pass, so it goes through the graph and leaves older screenshots to the button.
+                askSorter<SweepResult?>(null) { graph.sortNewScreenshots(recheckAll = true) } ?: return@launch
             }
             graph.prefs.usageAccessSeen = state.usage
         }
@@ -84,6 +85,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setEnabled(on: Boolean) {
         if (on && !setup.value.storage) return
         val context = getApplication<Application>()
+        // Written before the switch itself, so no pass can see sorting on with the old time. From now on, automatic
+        // sorting leaves everything older than this to the "Sort old screenshots" button.
+        if (on) graph.prefs.sortingSince = System.currentTimeMillis()
         graph.prefs.enabled = on
         enabled.value = on
         if (on) {

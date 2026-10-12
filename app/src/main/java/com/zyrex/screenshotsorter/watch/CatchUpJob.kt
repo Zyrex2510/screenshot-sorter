@@ -17,7 +17,7 @@ class CatchUpJob : JobService() {
         if (!graph.prefs.enabled || !SetupState.hasStorage(this)) return false
         Thread {
             try {
-                attempt("The catch-up sweep") { graph.sorter.sortPending() }
+                attempt("The catch-up sweep") { graph.sortNewScreenshots() }
                 // The watcher comes back even when the sweep failed.
                 attempt("Restarting the watcher") { WatchService.start(this) }
             } finally {

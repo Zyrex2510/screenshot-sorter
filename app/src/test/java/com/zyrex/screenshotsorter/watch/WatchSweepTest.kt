@@ -18,6 +18,7 @@ import com.zyrex.screenshotsorter.SorterApp
 import com.zyrex.screenshotsorter.grantStorage
 import com.zyrex.screenshotsorter.startAsAFreshInstall
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -68,6 +69,9 @@ class WatchSweepTest {
         val appOps = shadowOf(app.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager)
         appOps.setMode(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), app.packageName, AppOpsManager.MODE_ALLOWED)
         UsageQueries.count.set(0)
+        // Sorting was switched on two minutes ago, so the waiting screenshots below (a minute old unless said otherwise)
+        // were taken after that and missed while the app was not running.
+        (app as SorterApp).graph.prefs.sortingSince = System.currentTimeMillis() - 120_000
     }
 
     @Test
@@ -81,6 +85,33 @@ class WatchSweepTest {
         } finally {
             service.destroy()
         }
+    }
+
+    @Test
+    fun theWatcherLeavesAScreenshotFromBeforeSortingWasSwitchedOnForTheButton() {
+        val before = waitingScreenshot("Screenshot_20260101-100000_com.example.chat.jpg", ageMillis = 300_000)
+        val after = waitingScreenshot("Screenshot_20260101-100100_com.example.mail.jpg")
+        val service = Robolectric.buildService(WatchService::class.java).create()
+        try {
+            awaitUntil("the newer screenshot to be filed") { !after.exists() }
+            waitUntilTheWatcherHasDoneItsFirstSweep(service.get())
+            assertTrue("a screenshot from before sorting was switched on waits for the button", before.exists())
+        } finally {
+            service.destroy()
+        }
+    }
+
+    @Test
+    fun theCatchUpSweepLeavesAScreenshotFromBeforeSortingWasSwitchedOnForTheButton() {
+        val before = waitingScreenshot("Screenshot_20260101-100000_com.example.chat.jpg", ageMillis = 300_000)
+        val after = waitingScreenshot("Screenshot_20260101-100100_com.example.mail.jpg")
+        val job = startedCatchUpJob()
+
+        assertTrue(job.onStartJob(jobParameters()))
+        awaitUntil("the job to report itself finished") { shadowOf(job).isJobFinished }
+
+        assertFalse("a screenshot taken after sorting was switched on is filed", after.exists())
+        assertTrue("a screenshot from before sorting was switched on waits for the button", before.exists())
     }
 
     @Test
@@ -164,9 +195,9 @@ class WatchSweepTest {
     private fun screenshotsFolder(): File = File(Environment.getExternalStorageDirectory(), "DCIM/Screenshots").also { it.mkdirs() }
 
     // Old enough to be moved: a screenshot is left alone for its first ten seconds.
-    private fun waitingScreenshot(name: String): File = File(screenshotsFolder(), name).apply {
+    private fun waitingScreenshot(name: String, ageMillis: Long = 60_000): File = File(screenshotsFolder(), name).apply {
         writeText("pixels")
-        setLastModified(System.currentTimeMillis() - 60_000)
+        setLastModified(System.currentTimeMillis() - ageMillis)
     }
 
     private fun startedCatchUpJob(): CatchUpJob {
@@ -177,14 +208,6 @@ class WatchSweepTest {
     // Android hides the constructor from apps; Robolectric's phone has an empty one. Nothing reads the contents here.
     private fun jobParameters(): JobParameters = ReflectionHelpers.callConstructor(JobParameters::class.java)
 
-    // Whatever is queued on the watcher's thread before this runs has finished by the time the latch opens.
-    private fun waitUntilTheWatcherHasDoneItsFirstSweep(service: WatchService) {
-        val handler = ReflectionHelpers.getField<Handler>(service, "handler")
-        val done = CountDownLatch(1)
-        handler.post { done.countDown() }
-        assertTrue("the watcher never got to its first sweep", done.await(10, TimeUnit.SECONDS))
-    }
-
     // The watcher works on its own thread, so the test waits for what it does instead of assuming it is done.
     private fun awaitUntil(what: String, condition: () -> Boolean) {
         val giveUpAt = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
@@ -193,6 +216,14 @@ class WatchSweepTest {
             Thread.sleep(25)
         }
     }
+}
+
+/** Whatever is queued on the watcher's thread before this runs has finished by the time it returns. */
+internal fun waitUntilTheWatcherHasDoneItsFirstSweep(service: WatchService) {
+    val handler = ReflectionHelpers.getField<Handler>(service, "handler")
+    val done = CountDownLatch(1)
+    handler.post { done.countDown() }
+    assertTrue("the watcher never got to its first sweep", done.await(10, TimeUnit.SECONDS))
 }
 
 /** A phone that falls over while the app asks it to start the watcher, with an error nobody planned for. */
