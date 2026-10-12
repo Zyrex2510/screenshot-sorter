@@ -104,7 +104,8 @@ background setting.
 
 ## The screen
 
-One screen, following the system's light or dark mode:
+One screen, following the system's light or dark mode. The app uses its own
+fixed green colours in both, the same on every phone. It has four parts:
 
 - **Setup checklist.** One row per permission above, each with its status and a
   button that opens the right settings screen.
@@ -142,21 +143,24 @@ Kotlin, Jetpack Compose, one module. Each unit has one job:
 - **Unit tests** for the pure logic: filename parsing (Xiaomi, Samsung, Pixel,
   edited copies, odd names), folder-name cleaning, name collisions, and picking
   the foreground app from a list of usage events.
-- **Emulator** on Android 6.0, Android 10 and the latest Android: push files
-  with Xiaomi-, Samsung- and Pixel-style names, take real screenshots, check
-  the moves and the gallery index, reboot, and remove permissions mid-run.
+- **Simulated Android on the computer** (Robolectric) on Android 6.0 and Android 15: every Android call the
+  app makes, the background service, the boot receiver, the periodic job, and a launch of the real screen.
+  No emulator was used because the download is several gigabytes; the real phone is the first full test.
 - **Real phone.** The friend's Redmi, with a short checklist to follow. Only a
   real phone shows background killing and how the gallery displays the albums.
 
 ## Build and delivery
 
 - Minimum Android 6.0 (API 23), the lowest the current Android libraries
-  support. Targets the current stable Android.
+  support. Targets Android 16 (API 36) and is compiled against API 37.
 - App ID `com.zyrex.screenshotsorter`. It cannot be changed after a Google Play
   release.
 - A release APK signed with a new key. The key file stays in the project folder
   and out of git. It must be kept: updates only install over the old version if
   they are signed with the same key.
+- The 1.0 APK is built without code shrinking. It could not be run on a phone
+  before it was sent, and the tests only run the unshrunk code, so a crash
+  caused by shrinking could not have been found or diagnosed.
 - Tools: JDK and Android SDK command-line tools installed in user folders, no
   administrator rights, no Android Studio. Gradle's build output is kept
   outside OneDrive so syncing does not lock files during builds.
@@ -166,6 +170,8 @@ Kotlin, Jetpack Compose, one module. Each unit has one job:
 - Replace `DirectFileMover` with a mover that uses the system's media API and
   asks the user to confirm moves, because Google restricts "All files access".
 - Add a disclosure screen for Usage access.
+- Replace the `QUERY_ALL_PACKAGES` permission with a `<queries>` block, and drop the direct
+  battery-optimisation request, both of which Google restricts.
 
 Nothing in this version blocks that.
 
