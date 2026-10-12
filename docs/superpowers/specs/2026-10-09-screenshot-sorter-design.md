@@ -95,9 +95,14 @@ background setting.
   phone's media index for new images.
 - The service starts when sorting is switched on, when the app is opened, and
   after a reboot.
-- A catch-up pass sorts anything that was missed. It runs when the service
-  starts, when the app is opened, and from a periodic background job about
-  every 15 minutes (the shortest interval Android allows).
+- A catch-up pass sorts the screenshots taken since sorting was switched on
+  that were missed. It runs when the service starts, when the app is opened,
+  and from a periodic background job about every 15 minutes (the shortest
+  interval Android allows).
+- Automatic sorting never touches screenshots from before sorting was switched
+  on. Those wait for the "Sort old screenshots" button. Switching sorting off
+  and on again starts a new period, so a screenshot taken while it was off
+  waits for the button too.
 - Brand help: on Xiaomi/Redmi/POCO, Oppo/Realme, Vivo and Huawei/Honor the app
   tries to open that brand's "autostart" settings screen. If it cannot, it
   shows two lines of instructions instead.
