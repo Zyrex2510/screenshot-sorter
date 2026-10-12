@@ -1,5 +1,51 @@
 <resources>
     <string name="app_name">Screenshot Sorter</string>
+
+    <string name="sorting_on">Sorting is on</string>
+    <string name="sorting_off">Sorting is off</string>
+    <string name="sorting_on_detail">New screenshots move into a folder named after the app, about 10 seconds after you take them.</string>
+    <string name="sorting_off_detail">Turn it on to file new screenshots by app.</string>
+    <string name="sorting_needs_files">Allow files access below first.</string>
+
+    <string name="setup_title">Setup</string>
+    <string name="setup_files">Files access</string>
+    <string name="setup_files_detail">Lets the app move screenshots into folders.</string>
+    <string name="setup_usage">Usage access</string>
+    <string name="setup_usage_detail">Lets the app see which app was open when you took the screenshot.</string>
+    <string name="setup_usage_not_needed">Not needed on this phone. Its screenshot names already include the app.</string>
+    <string name="setup_usage_restricted">If the switch there is greyed out, open this app\'s App info, tap the ⋮ menu and choose Allow restricted settings.</string>
+    <string name="setup_battery">Run in the background</string>
+    <string name="setup_battery_detail">Stops the phone from putting the app to sleep.</string>
+    <string name="setup_autostart">Autostart</string>
+    <string name="setup_notifications">Notification</string>
+    <string name="setup_notifications_detail">Optional. Shows a small note while sorting is on.</string>
+    <string name="action_allow">Allow</string>
+    <string name="action_open">Open</string>
+
+    <string name="old_title">Old screenshots</string>
+    <string name="old_detail">Sort the screenshots that are already in your gallery.</string>
+    <string name="old_button">Sort old screenshots</string>
+    <plurals name="old_confirm_title">
+        <item quantity="one">Sort %d screenshot?</item>
+        <item quantity="other">Sort %d screenshots?</item>
+    </plurals>
+    <string name="old_confirm_text">They move into folders named after their apps. Nothing is deleted.</string>
+    <string name="old_none_title">Nothing to sort</string>
+    <string name="old_none_text">No waiting screenshot could be matched to an app. Phones that do not put the app in the screenshot name can only match the last few days.</string>
+    <plurals name="old_done_title">
+        <item quantity="one">Moved %d screenshot</item>
+        <item quantity="other">Moved %d screenshots</item>
+    </plurals>
+    <string name="action_sort">Sort</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_ok">OK</string>
+
+    <string name="recent_title">Recent</string>
+    <string name="recent_empty">Nothing yet. Take a screenshot to try it.</string>
+    <string name="recent_moved">Moved to %s</string>
+    <string name="recent_unknown">Could not tell which app</string>
+    <string name="recent_failed">Not moved: %s</string>
+
     <string name="channel_name">Sorting status</string>
     <string name="notification_title">Screenshot Sorter is on</string>
     <string name="notification_text">New screenshots are filed by app.</string>
