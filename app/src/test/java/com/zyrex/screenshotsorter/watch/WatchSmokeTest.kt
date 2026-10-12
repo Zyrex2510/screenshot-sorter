@@ -84,4 +84,24 @@ class WatchSmokeTest {
         // Storage is not granted in this test, so the watcher itself must not start.
         assertNull(shadowOf(app).nextStartedService)
     }
+
+    @Test
+    fun theQuickBootAndAppUpdateBroadcastsBringSortingBackToo() {
+        (app as SorterApp).graph.prefs.enabled = true
+        for (action in listOf("android.intent.action.QUICKBOOT_POWERON", Intent.ACTION_MY_PACKAGE_REPLACED)) {
+            jobs.cancelAll()
+            BootReceiver().onReceive(app, Intent(action))
+            assertEquals(action, 1, jobs.allPendingJobs.size)
+        }
+    }
+
+    @Test
+    fun anIntentFromAnotherAppWithADifferentActionIsIgnored() {
+        (app as SorterApp).graph.prefs.enabled = true
+        // The receiver is exported, so any app can send it an intent. Only the boot and update actions count.
+        BootReceiver().onReceive(app, Intent("com.example.SPOOFED"))
+        BootReceiver().onReceive(app, Intent())
+        assertEquals(0, jobs.allPendingJobs.size)
+        assertNull(shadowOf(app).nextStartedService)
+    }
 }
