@@ -15,3 +15,11 @@ class FakeHistory(var packageName: String? = null) : ForegroundAppFinder {
         return packageName
     }
 }
+
+class MemoryStore(var text: String = "") : TextStore {
+    override fun read(): String = text
+
+    override fun write(text: String) {
+        this.text = text
+    }
+}
