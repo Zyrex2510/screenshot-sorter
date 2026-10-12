@@ -32,3 +32,13 @@ fun startAsAFreshInstall(app: Application) {
         ShadowEnvironment.addExternalDir("shared-storage")
     }
 }
+
+/** What the person grants on the storage screen: the storage permission before Android 11, All files access from Android 11. */
+fun grantStorage(app: Application) {
+    if (Build.VERSION.SDK_INT >= 30) {
+        val appOps = shadowOf(app.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager)
+        appOps.setMode(MANAGE_EXTERNAL_STORAGE_OP, app.applicationInfo.uid, app.packageName, AppOpsManager.MODE_ALLOWED)
+    } else {
+        shadowOf(app).grantPermissions(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+    }
+}
