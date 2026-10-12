@@ -27,6 +27,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 /** Stays alive as a foreground service and sorts each new screenshot shortly after it appears. */
 class WatchService : Service() {
     private var thread: HandlerThread? = null
+    // The gallery's observer calls in on the worker thread, so this is read from there.
+    @Volatile
     private var handler: Handler? = null
     private var observer: ContentObserver? = null
     private val sweepQueued = AtomicBoolean(false)
@@ -44,14 +46,20 @@ class WatchService : Service() {
         val mediaObserver = object : ContentObserver(workerHandler) {
             override fun onChange(selfChange: Boolean) = queueSweep(Sorter.MIN_AGE_MILLIS + SETTLE_MILLIS)
         }
-        contentResolver.registerContentObserver(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, true, mediaObserver)
+        // Everything the observer needs is in place before it can report a change. Registering comes before the
+        // first sweep, so a screenshot taken in between either shows up in that sweep or triggers another.
         thread = worker
         handler = workerHandler
         observer = mediaObserver
+        contentResolver.registerContentObserver(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, true, mediaObserver)
         queueSweep(0)
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Opening the app asks for the watcher again. If it is already running, that is the cue for a catch-up pass.
+        queueSweep(0)
+        return START_STICKY
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -64,7 +72,9 @@ class WatchService : Service() {
 
     // One queued sweep is enough: it handles everything old enough and re-queues itself for the rest.
     private fun queueSweep(delayMillis: Long) {
-        if (sweepQueued.compareAndSet(false, true)) handler?.postDelayed(sweep, delayMillis)
+        // With no handler there is nothing to post to, and marking a sweep as queued would block every later one.
+        val target = handler ?: return
+        if (sweepQueued.compareAndSet(false, true)) target.postDelayed(sweep, delayMillis)
     }
 
     private fun runSweep() {

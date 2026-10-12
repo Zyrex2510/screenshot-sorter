@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.os.Environment
+import android.os.Handler
 import android.os.Process
 import android.provider.MediaStore
 import android.util.Log
@@ -33,8 +34,10 @@ import org.robolectric.annotation.Implements
 import org.robolectric.shadows.ShadowLog
 import org.robolectric.shadows.ShadowSystemClock
 import org.robolectric.util.ReflectionHelpers
+import org.robolectric.util.ReflectionHelpers.ClassParameter
 import java.io.File
 import java.time.Duration
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -124,6 +127,39 @@ class WatchSweepTest {
         assertTrue(failure.throwable is RuntimeException)
     }
 
+    @Test
+    fun startingTheServiceAgainSweepsWhatAppearedWhileItWasRunning() {
+        val service = Robolectric.buildService(WatchService::class.java).create()
+        try {
+            waitUntilTheWatcherHasDoneItsFirstSweep(service.get())
+            // No media change is reported, as when the app is opened and asks for the watcher again.
+            val screenshot = waitingScreenshot("Screenshot_20260101-100000_com.example.chat.jpg")
+            service.startCommand(0, 1)
+            awaitUntil("the screenshot to be filed") { !screenshot.exists() }
+        } finally {
+            service.destroy()
+        }
+    }
+
+    @Test
+    fun aChangeReportedBeforeTheWatcherIsSetUpDoesNotStopItsFirstSweep() {
+        val screenshot = waitingScreenshot("Screenshot_20260101-100000_com.example.chat.jpg")
+        val service = Robolectric.buildService(WatchService::class.java)
+        // The gallery reports a change to a service that has no thread to sweep on yet. The report is lost,
+        // and the service must not remember it as a sweep that is already queued.
+        ReflectionHelpers.callInstanceMethod<Unit>(
+            service.get(),
+            "queueSweep",
+            ClassParameter.from(java.lang.Long.TYPE, 10_500L),
+        )
+        service.create()
+        try {
+            awaitUntil("the screenshot to be filed") { !screenshot.exists() }
+        } finally {
+            service.destroy()
+        }
+    }
+
     @Suppress("DEPRECATION")
     private fun screenshotsFolder(): File = File(Environment.getExternalStorageDirectory(), "DCIM/Screenshots").also { it.mkdirs() }
 
@@ -140,6 +176,14 @@ class WatchSweepTest {
 
     // Android hides the constructor from apps; Robolectric's phone has an empty one. Nothing reads the contents here.
     private fun jobParameters(): JobParameters = ReflectionHelpers.callConstructor(JobParameters::class.java)
+
+    // Whatever is queued on the watcher's thread before this runs has finished by the time the latch opens.
+    private fun waitUntilTheWatcherHasDoneItsFirstSweep(service: WatchService) {
+        val handler = ReflectionHelpers.getField<Handler>(service, "handler")
+        val done = CountDownLatch(1)
+        handler.post { done.countDown() }
+        assertTrue("the watcher never got to its first sweep", done.await(10, TimeUnit.SECONDS))
+    }
 
     // The watcher works on its own thread, so the test waits for what it does instead of assuming it is done.
     private fun awaitUntil(what: String, condition: () -> Boolean) {
