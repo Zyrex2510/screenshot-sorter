@@ -9,6 +9,7 @@ import com.zyrex.screenshotsorter.startAsAFreshInstall
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -49,6 +50,23 @@ class WatchSmokeTest {
         assertEquals(1, jobs.allPendingJobs.size)
         CatchUpJob.cancel(app)
         assertEquals(0, jobs.allPendingJobs.size)
+    }
+
+    @Test
+    fun schedulingAgainKeepsTheJobThatIsAlreadyPending() {
+        CatchUpJob.schedule(app)
+        val first = jobs.allPendingJobs.single()
+        // Opening the app schedules every time; replacing the job would restart its 15 minute period.
+        CatchUpJob.schedule(app)
+        assertSame(first, jobs.allPendingJobs.single())
+    }
+
+    @Test
+    fun theCatchUpJobCanBeScheduledAgainAfterItWasCancelled() {
+        CatchUpJob.schedule(app)
+        CatchUpJob.cancel(app)
+        CatchUpJob.schedule(app)
+        assertEquals(1, jobs.allPendingJobs.size)
     }
 
     @Test

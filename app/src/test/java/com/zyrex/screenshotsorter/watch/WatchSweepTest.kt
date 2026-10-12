@@ -2,15 +2,23 @@ package com.zyrex.screenshotsorter.watch
 
 import android.app.AppOpsManager
 import android.app.Application
+import android.app.job.JobParameters
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
+import android.content.ComponentName
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.Intent
 import android.os.Environment
 import android.os.Process
 import android.provider.MediaStore
+import android.util.Log
+import com.zyrex.screenshotsorter.SorterApp
 import com.zyrex.screenshotsorter.grantStorage
 import com.zyrex.screenshotsorter.startAsAFreshInstall
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
@@ -22,7 +30,9 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
+import org.robolectric.shadows.ShadowLog
 import org.robolectric.shadows.ShadowSystemClock
+import org.robolectric.util.ReflectionHelpers
 import java.io.File
 import java.time.Duration
 import java.util.concurrent.TimeUnit
@@ -88,6 +98,32 @@ class WatchSweepTest {
         }
     }
 
+    @Test
+    fun aCatchUpSweepThatFailsIsLoggedAndTheWatcherIsStillBroughtBack() {
+        // No app in the name, so the sorting pass asks the usage service, and that fails.
+        waitingScreenshot("Screenshot_20260101-100000.jpg")
+        val job = startedCatchUpJob()
+
+        assertTrue(job.onStartJob(jobParameters()))
+        awaitUntil("the job to report itself finished") { shadowOf(job).isJobFinished }
+
+        val failure = ShadowLog.getLogsForTag("CatchUpJob").single { it.type == Log.WARN }
+        assertTrue(failure.throwable is IllegalStateException)
+        assertNotNull("the watcher should be started even though the sweep failed", shadowOf(app).nextStartedService)
+    }
+
+    @Test
+    fun theCatchUpJobStillFinishesWhenStartingTheWatcherFails() {
+        val job = startedCatchUpJob()
+        ReflectionHelpers.setField(ContextWrapper::class.java, job, "mBase", StartRefusingContext(job.baseContext))
+
+        assertTrue(job.onStartJob(jobParameters()))
+        awaitUntil("the job to report itself finished") { shadowOf(job).isJobFinished }
+
+        val failure = ShadowLog.getLogsForTag("CatchUpJob").single { it.type == Log.WARN }
+        assertTrue(failure.throwable is RuntimeException)
+    }
+
     @Suppress("DEPRECATION")
     private fun screenshotsFolder(): File = File(Environment.getExternalStorageDirectory(), "DCIM/Screenshots").also { it.mkdirs() }
 
@@ -97,6 +133,14 @@ class WatchSweepTest {
         setLastModified(System.currentTimeMillis() - 60_000)
     }
 
+    private fun startedCatchUpJob(): CatchUpJob {
+        (app as SorterApp).graph.prefs.enabled = true
+        return Robolectric.buildService(CatchUpJob::class.java).create().get()
+    }
+
+    // Android hides the constructor from apps; Robolectric's phone has an empty one. Nothing reads the contents here.
+    private fun jobParameters(): JobParameters = ReflectionHelpers.callConstructor(JobParameters::class.java)
+
     // The watcher works on its own thread, so the test waits for what it does instead of assuming it is done.
     private fun awaitUntil(what: String, condition: () -> Boolean) {
         val giveUpAt = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
@@ -105,4 +149,11 @@ class WatchSweepTest {
             Thread.sleep(25)
         }
     }
+}
+
+/** A phone that falls over while the app asks it to start the watcher, with an error nobody planned for. */
+private class StartRefusingContext(base: Context) : ContextWrapper(base) {
+    override fun startService(service: Intent?): ComponentName? = throw RuntimeException("The phone fell over")
+
+    override fun startForegroundService(service: Intent?): ComponentName? = throw RuntimeException("The phone fell over")
 }
