@@ -1,12 +1,9 @@
 package com.zyrex.screenshotsorter.platform
 
-import android.Manifest
-import android.app.AppOpsManager
 import android.app.Application
-import android.content.Context
 import android.os.Build
-import android.os.Process
 import com.zyrex.screenshotsorter.SorterApp
+import com.zyrex.screenshotsorter.startAsAFreshInstall
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -16,9 +13,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import org.robolectric.shadows.ShadowEnvironment
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
@@ -26,31 +21,8 @@ import java.io.File
 class PlatformSmokeTest {
     private val app: Application get() = RuntimeEnvironment.getApplication()
 
-    private companion object {
-        // The app-op behind All files access; the SDK only exposes its name to system apps.
-        const val MANAGE_EXTERNAL_STORAGE_OP = "android:manage_external_storage"
-    }
-
-    // Robolectric grants every manifest permission and allows every app-op by default; a freshly installed app has none.
     @Before
-    fun startAsAFreshInstall() {
-        shadowOf(app).denyPermissions(
-            Manifest.permission.WRITE_EXTERNAL_STORAGE,
-            Manifest.permission.MANAGE_EXTERNAL_STORAGE,
-        )
-        val appOps = shadowOf(app.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager)
-        appOps.setMode(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), app.packageName, AppOpsManager.MODE_DEFAULT)
-        if (Build.VERSION.SDK_INT >= 30) {
-            appOps.setMode(
-                MANAGE_EXTERNAL_STORAGE_OP,
-                app.applicationInfo.uid,
-                app.packageName,
-                AppOpsManager.MODE_DEFAULT,
-            )
-            // The simulated phone has no shared storage unless one is added, and the system's All files access check reads it.
-            ShadowEnvironment.addExternalDir("shared-storage")
-        }
-    }
+    fun freshInstall() = startAsAFreshInstall(app)
 
     @Test
     fun readsEveryPermissionWithoutCrashing() {
