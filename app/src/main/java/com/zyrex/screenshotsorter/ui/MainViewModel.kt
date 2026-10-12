@@ -72,7 +72,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 WatchService.start(context)
                 CatchUpJob.schedule(context)
             }
-            if (state.usage && !graph.prefs.usageAccessSeen) {
+            // Automatic sorting never runs while the switch is off. What the recheck would have covered then predates
+            // the next switch-on, so it belongs to the "Sort old screenshots" button, and the flag below is updated anyway.
+            if (state.usage && !graph.prefs.usageAccessSeen && enabled.value && state.storage) {
                 // Usage access was just granted: screenshots given up on earlier can now be matched.
                 // If the recheck fails, leave the flag alone so it is tried again the next time the screen opens.
                 // It is an automatic pass, so it goes through the graph and leaves older screenshots to the button.

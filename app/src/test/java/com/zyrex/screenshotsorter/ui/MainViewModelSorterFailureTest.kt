@@ -77,6 +77,8 @@ class MainViewModelSorterFailureTest {
     @Test
     fun reopeningTheAppAfterGrantingUsageAccessSurvivesAFailingRecheckAndTriesAgainNextTime() {
         val prefs = (app as SorterApp).graph.prefs
+        // The recheck is an automatic pass, so it only runs while sorting is switched on.
+        prefs.enabled = true
         assertFalse(prefs.usageAccessSeen)
         val viewModel = MainViewModel(app)
 
@@ -93,6 +95,8 @@ class MainViewModelSorterFailureTest {
     fun theRecheckAfterGrantingUsageAccessLeavesScreenshotsFromBeforeSortingWasSwitchedOnAlone() {
         val prefs = (app as SorterApp).graph.prefs
         // The screenshot from the set-up is a minute old and needs the usage service; sorting was switched on 30 seconds ago.
+        // The recheck is an automatic pass, so it only runs while sorting is switched on.
+        prefs.enabled = true
         prefs.sortingSince = System.currentTimeMillis() - 30_000
         val viewModel = MainViewModel(app)
 

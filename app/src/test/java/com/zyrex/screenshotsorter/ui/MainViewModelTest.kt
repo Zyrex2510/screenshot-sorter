@@ -1,8 +1,13 @@
 package com.zyrex.screenshotsorter.ui
 
+import android.app.AppOpsManager
 import android.app.Application
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
+import android.content.Context
 import android.os.Environment
 import android.os.Looper
+import android.os.Process
 import com.zyrex.screenshotsorter.SorterApp
 import com.zyrex.screenshotsorter.grantStorage
 import com.zyrex.screenshotsorter.startAsAFreshInstall
@@ -162,6 +167,48 @@ class MainViewModelTest {
         assertEquals(OldSort.Done(1), viewModel.awaitUntil("the sort") { it.oldSort is OldSort.Done }.oldSort)
         assertFalse("the old screenshot should have moved into a folder", old.exists())
         assertTrue("a screenshot younger than ten seconds must stay where it is", justTaken.exists())
+    }
+
+    // Usage access is on, and the usage history says Telegram was on screen before the screenshot below was taken.
+    // The screenshot has no app in its name, so only that history can say where it belongs.
+    @Suppress("DEPRECATION")
+    private fun grantUsageAccessWithTelegramOnScreen(): File {
+        val appOps = shadowOf(app.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager)
+        appOps.setMode(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), app.packageName, AppOpsManager.MODE_ALLOWED)
+        val usage = shadowOf(app.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager)
+        usage.addEvent("org.telegram.messenger", System.currentTimeMillis() - 120_000, UsageEvents.Event.MOVE_TO_FOREGROUND)
+        return screenshotAged("Screenshot_20260101-100200.jpg", 60_000)
+    }
+
+    @Test
+    fun grantingUsageAccessWhileTheSwitchIsOffSortsNothingButIsStillNoted() {
+        grantStorage(app)
+        val waiting = grantUsageAccessWithTelegramOnScreen()
+        assertFalse(prefs.enabled)
+        assertFalse(prefs.usageAccessSeen)
+        val viewModel = MainViewModel(app)
+
+        viewModel.refresh()
+        viewModel.awaitUntil("usage access to show as granted") { it.setup.usage }
+        awaitOnMainThread("usage access to be noted") { prefs.usageAccessSeen }
+
+        assertTrue("sorting is off, so the screenshot waits for the button", waiting.exists())
+    }
+
+    // Guards the test above: with the switch on, the same set-up does file the screenshot, so that test cannot pass by accident.
+    @Test
+    fun grantingUsageAccessWhileTheSwitchIsOnFilesWhatWasTakenSinceItWasSwitchedOn() {
+        grantStorage(app)
+        val waiting = grantUsageAccessWithTelegramOnScreen()
+        prefs.enabled = true
+        prefs.sortingSince = System.currentTimeMillis() - 300_000
+        val viewModel = MainViewModel(app)
+
+        viewModel.refresh()
+        viewModel.awaitUntil("usage access to show as granted") { it.setup.usage }
+        awaitOnMainThread("usage access to be noted") { prefs.usageAccessSeen }
+
+        assertFalse("sorting is on, so the recheck should have filed it", waiting.exists())
     }
 
     @Test
