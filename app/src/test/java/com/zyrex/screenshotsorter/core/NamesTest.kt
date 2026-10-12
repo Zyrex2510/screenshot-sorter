@@ -26,6 +26,8 @@ class FolderNamesTest {
         assertEquals("Other", FolderNames.clean("///"))
         assertEquals("Other", FolderNames.clean(""))
         assertEquals("Other", FolderNames.clean(" . "))
+        assertEquals("hidden", FolderNames.clean(". .hidden"))
+        assertEquals("x", FolderNames.clean("?.?.x"))
     }
 
     @Test

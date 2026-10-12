@@ -6,13 +6,15 @@ object FolderNames {
 
     private val illegal = Regex("""[\\/:*?"<>|\p{Cntrl}]""")
     private val spaces = Regex("""\s+""")
+    // A folder name must start and end with neither a dot nor whitespace, or it can be hidden.
+    private val edge: (Char) -> Boolean = { it == '.' || it.isWhitespace() }
 
     /** Turns an app's display name into a folder name that every phone accepts and no gallery hides. */
     fun clean(label: String): String {
-        val tidy = label.replace(illegal, " ").replace(spaces, " ").trim().trimStart('.').trim()
+        val tidy = label.replace(illegal, " ").replace(spaces, " ").trimStart(edge)
         var short = tidy.take(MAX_LENGTH)
         if (short.isNotEmpty() && short.last().isHighSurrogate()) short = short.dropLast(1)
-        return short.trimEnd('.', ' ').ifEmpty { FALLBACK }
+        return short.trimEnd(edge).ifEmpty { FALLBACK }
     }
 }
 
