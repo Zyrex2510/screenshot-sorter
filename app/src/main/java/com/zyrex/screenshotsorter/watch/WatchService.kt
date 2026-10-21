@@ -81,8 +81,17 @@ class WatchService : Service() {
         // Cleared first, so a change that arrives while this pass runs still queues the next one.
         sweepQueued.set(false)
         try {
+            val graph = (application as SorterApp).graph
+            if (!graph.prefs.enabled) {
+                // Switching off stops this service, but a pass may already be queued or running when that arrives, and
+                // a service started just before the switch went off finds it off. The check is here and not in
+                // onCreate: a service started with startForegroundService must go foreground first, or Android 8+
+                // ends the app.
+                stopSelf()
+                return
+            }
             if (!SetupState.hasStorage(this)) return
-            val result = (application as SorterApp).graph.sortNewScreenshots()
+            val result = graph.sortNewScreenshots()
             if (result.tooNew > 0) queueSweep(Sorter.MIN_AGE_MILLIS)
         } catch (e: Exception) {
             // The pass has no catch of its own, and an exception here would end the watcher's thread and crash the app

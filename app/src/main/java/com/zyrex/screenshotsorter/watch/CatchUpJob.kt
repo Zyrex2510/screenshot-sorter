@@ -7,6 +7,7 @@ import android.app.job.JobService
 import android.content.ComponentName
 import android.content.Context
 import android.util.Log
+import com.zyrex.screenshotsorter.AppGraph
 import com.zyrex.screenshotsorter.SorterApp
 import com.zyrex.screenshotsorter.platform.SetupState
 
@@ -15,16 +16,25 @@ class CatchUpJob : JobService() {
     override fun onStartJob(params: JobParameters): Boolean {
         val graph = (application as SorterApp).graph
         if (!graph.prefs.enabled || !SetupState.hasStorage(this)) return false
-        Thread {
-            try {
-                attempt("The catch-up sweep") { graph.sortNewScreenshots() }
-                // The watcher comes back even when the sweep failed.
-                attempt("Restarting the watcher") { WatchService.start(this) }
-            } finally {
-                jobFinished(params, false)
-            }
-        }.start()
+        Thread { catchUp(graph, params) }.start()
         return true
+    }
+
+    /**
+     * What the job does on its own thread. Internal so a test can run it at a moment of its choosing.
+     *
+     * The switch is read again before each step: it may have been turned off since [onStartJob] checked it, and
+     * turning it off cancels the job but cannot stop this thread. Sweeping or restarting the watcher after that
+     * would run automatic sorting, with its notification, while the screen says it is off.
+     */
+    internal fun catchUp(graph: AppGraph, params: JobParameters) {
+        try {
+            if (graph.prefs.enabled) attempt("The catch-up sweep") { graph.sortNewScreenshots() }
+            // The watcher comes back even when the sweep failed.
+            if (graph.prefs.enabled) attempt("Restarting the watcher") { WatchService.start(this) }
+        } finally {
+            jobFinished(params, false)
+        }
     }
 
     // Nobody can attach a debugger to the phone, so a failure leaves a log line instead of vanishing.

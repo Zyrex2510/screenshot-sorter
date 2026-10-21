@@ -70,8 +70,9 @@ class WatchSweepTest {
         appOps.setMode(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), app.packageName, AppOpsManager.MODE_ALLOWED)
         UsageQueries.count.set(0)
         // Sorting was switched on two minutes ago, so the waiting screenshots below (a minute old unless said otherwise)
-        // were taken after that and missed while the app was not running.
+        // were taken after that and missed while the app was not running. A watcher only sorts while the switch is on.
         (app as SorterApp).graph.prefs.sortingSince = System.currentTimeMillis() - 120_000
+        (app as SorterApp).graph.prefs.enabled = true
     }
 
     @Test

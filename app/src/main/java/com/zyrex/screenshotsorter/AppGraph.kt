@@ -30,7 +30,14 @@ class AppGraph(context: Context) {
         log,
     )
 
-    /** The pass every automatic caller must use: it leaves screenshots from before sorting was switched on alone. */
-    fun sortNewScreenshots(recheckAll: Boolean = false): SweepResult =
+    /**
+     * The pass every automatic caller must use: it leaves screenshots from before sorting was switched on alone.
+     *
+     * The limit is read once the sorter is free, not before: a pass that waited behind a long bulk sort would
+     * otherwise run with the limit from when it was queued, even if sorting was switched off and on again since.
+     * The sorter's own methods lock the same monitor, so holding it here costs nothing.
+     */
+    fun sortNewScreenshots(recheckAll: Boolean = false): SweepResult = synchronized(sorter) {
         sorter.sortPending(recheckAll = recheckAll, notBeforeMillis = prefs.sortingSince)
+    }
 }
