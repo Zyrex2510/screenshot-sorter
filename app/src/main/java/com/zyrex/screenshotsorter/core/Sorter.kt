@@ -21,7 +21,7 @@ class Sorter(
      * as too new, not remembered as looked at and not logged, so a later pass without the limit still finds them.
      */
     @Synchronized
-    fun sortPending(recheckAll: Boolean = false, minAgeMillis: Long = MIN_AGE_MILLIS, notBeforeMillis: Long = 0): SweepResult {
+    fun sortPending(recheckAll: Boolean = false, minAgeMillis: Long = MIN_AGE_MILLIS, notBeforeMillis: Long = 0, afterEachMove: () -> Unit = {}): SweepResult {
         var moved = 0
         var tooNew = 0
         for (file in finder.unsorted()) {

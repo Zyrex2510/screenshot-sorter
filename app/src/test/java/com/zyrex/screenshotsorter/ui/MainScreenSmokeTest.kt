@@ -4,10 +4,15 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.core.app.ActivityScenario
+import com.zyrex.screenshotsorter.grantStorage
+import com.zyrex.screenshotsorter.makeEverySortingPassFail
 import com.zyrex.screenshotsorter.startAsAFreshInstall
 import org.junit.Rule
 import org.junit.Test
@@ -48,5 +53,23 @@ class MainScreenSmokeTest {
     fun sortingOldScreenshotsWaitsForFilesAccess() = onFirstLaunch {
         showInList("Sort old screenshots")
         compose.onNodeWithText("Sort old screenshots").assertIsNotEnabled()
+    }
+
+    @Test
+    fun aSortThatStopsEarlyTellsThePersonSoAndPointsToTheRecentList() {
+        val app = RuntimeEnvironment.getApplication()
+        startAsAFreshInstall(app)
+        grantStorage(app)
+        makeEverySortingPassFail(app)
+        ActivityScenario.launch(MainActivity::class.java).use {
+            showInList("Sort old screenshots")
+            // The button waits for files access to show as granted.
+            compose.waitUntil(10_000) { compose.onAllNodes(hasText("Sort old screenshots") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("Sort old screenshots").performClick()
+            compose.waitUntil(10_000) { compose.onAllNodesWithText("Sorting stopped early").fetchSemanticsNodes().isNotEmpty() }
+
+            compose.onNodeWithText("Sorting stopped early").assertIsDisplayed()
+            compose.onNodeWithText("0 moved. The Recent list shows what went wrong.").assertIsDisplayed()
+        }
     }
 }

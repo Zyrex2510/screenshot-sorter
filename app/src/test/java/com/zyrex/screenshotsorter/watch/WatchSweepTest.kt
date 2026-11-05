@@ -15,7 +15,9 @@ import android.os.Process
 import android.provider.MediaStore
 import android.util.Log
 import com.zyrex.screenshotsorter.SorterApp
+import com.zyrex.screenshotsorter.core.Outcome
 import com.zyrex.screenshotsorter.grantStorage
+import com.zyrex.screenshotsorter.makeEverySortingPassFail
 import com.zyrex.screenshotsorter.startAsAFreshInstall
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -134,9 +136,45 @@ class WatchSweepTest {
     }
 
     @Test
+    fun aSweepThatFailsAsAWholeIsLoggedAndDoesNotStopTheWatcherFromSweepingAgain() {
+        val root = makeEverySortingPassFail(app)
+        val service = Robolectric.buildService(WatchService::class.java).create()
+        try {
+            awaitUntil("the first sweep to fail and be written down") {
+                root.listings.get() >= 1 && (app as SorterApp).graph.log.entries.value.isNotEmpty()
+            }
+            assertOnlyFailureInTheRecentList("Sorting", "IllegalStateException: Storage cannot be listed")
+            val sweepsSoFar = root.listings.get()
+            app.contentResolver.notifyChange(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, null)
+            awaitUntil("another sweep after the change") {
+                ShadowSystemClock.advanceBy(Duration.ofSeconds(11))
+                root.listings.get() > sweepsSoFar
+            }
+        } finally {
+            service.destroy()
+        }
+    }
+
+    @Test
+    fun aScreenshotTheWatcherCannotHandleIsLoggedAndDoesNotHoldUpTheNewerOneBehindIt() {
+        // No app in the name, so the sorting pass asks the usage service, and that fails for this one screenshot.
+        val unknown = waitingScreenshot("Screenshot_20260101-100000.jpg", ageMillis = 90_000)
+        val fine = waitingScreenshot("Screenshot_20260101-100100_com.example.chat.jpg")
+        val service = Robolectric.buildService(WatchService::class.java).create()
+        try {
+            awaitUntil("the newer screenshot to be filed") { !fine.exists() }
+            assertTrue(unknown.exists())
+            assertOnlyFailureInTheRecentList(unknown.name, "IllegalStateException: The usage service fell over")
+        } finally {
+            service.destroy()
+        }
+    }
+
+    @Test
     fun aCatchUpSweepThatFailsIsLoggedAndTheWatcherIsStillBroughtBack() {
-        // No app in the name, so the sorting pass asks the usage service, and that fails.
-        waitingScreenshot("Screenshot_20260101-100000.jpg")
+        // The whole pass fails, as when the folders cannot be listed. One screenshot that fails is the sorter's own
+        // business and is covered below; only a failure of the pass reaches the job.
+        makeEverySortingPassFail(app)
         val job = startedCatchUpJob()
 
         assertTrue(job.onStartJob(jobParameters()))
@@ -145,6 +183,24 @@ class WatchSweepTest {
         val failure = ShadowLog.getLogsForTag("CatchUpJob").single { it.type == Log.WARN }
         assertTrue(failure.throwable is IllegalStateException)
         assertNotNull("the watcher should be started even though the sweep failed", shadowOf(app).nextStartedService)
+        assertOnlyFailureInTheRecentList("Sorting", "IllegalStateException: Storage cannot be listed")
+    }
+
+    @Test
+    fun aCatchUpSweepWithAScreenshotItCannotHandleStillFilesTheOnesBehindItAndStartsTheWatcher() {
+        // No app in the name, so the sorting pass asks the usage service, and that fails for this one screenshot.
+        val unknown = waitingScreenshot("Screenshot_20260101-100000.jpg", ageMillis = 90_000)
+        val fine = waitingScreenshot("Screenshot_20260101-100100_com.example.chat.jpg")
+        val job = startedCatchUpJob()
+
+        assertTrue(job.onStartJob(jobParameters()))
+        awaitUntil("the job to report itself finished") { shadowOf(job).isJobFinished }
+
+        assertFalse("the screenshot behind the failing one is filed", fine.exists())
+        assertTrue(unknown.exists())
+        assertOnlyFailureInTheRecentList(unknown.name, "IllegalStateException: The usage service fell over")
+        assertTrue("one failing screenshot is not a failure of the sweep", ShadowLog.getLogsForTag("CatchUpJob").none { it.type == Log.WARN })
+        assertNotNull(shadowOf(app).nextStartedService)
     }
 
     @Test
@@ -157,6 +213,7 @@ class WatchSweepTest {
 
         val failure = ShadowLog.getLogsForTag("CatchUpJob").single { it.type == Log.WARN }
         assertTrue(failure.throwable is RuntimeException)
+        assertOnlyFailureInTheRecentList("Watcher", "RuntimeException: The phone fell over")
     }
 
     @Test
@@ -208,6 +265,12 @@ class WatchSweepTest {
 
     // Android hides the constructor from apps; Robolectric's phone has an empty one. Nothing reads the contents here.
     private fun jobParameters(): JobParameters = ReflectionHelpers.callConstructor(JobParameters::class.java)
+
+    // What the person sees on the screen: one failed entry that names what failed and says why.
+    private fun assertOnlyFailureInTheRecentList(name: String, detail: String) {
+        val failed = (app as SorterApp).graph.log.entries.value.filter { it.outcome == Outcome.FAILED }
+        assertEquals(listOf(name to detail), failed.map { it.fileName to it.detail })
+    }
 
     // The watcher works on its own thread, so the test waits for what it does instead of assuming it is done.
     private fun awaitUntil(what: String, condition: () -> Boolean) {

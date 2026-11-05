@@ -41,6 +41,7 @@ sealed interface OldSort {
     data class Confirm(val count: Int) : OldSort
     data object Working : OldSort
     data class Done(val moved: Int) : OldSort
+    data class Failed(val moved: Int) : OldSort
 }
 
 data class MainUi(

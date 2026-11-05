@@ -23,3 +23,14 @@ class MemoryStore(var text: String = "") : TextStore {
         this.text = text
     }
 }
+
+/** A place to save text that works [allowedWrites] times and then fails every time. */
+class WriteFailsAfter(private val allowedWrites: Int) : TextStore {
+    private var writes = 0
+
+    override fun read(): String = ""
+
+    override fun write(text: String) {
+        if (++writes > allowedWrites) throw IllegalStateException("The store fell over")
+    }
+}
